@@ -1,4 +1,3 @@
-
 /**
 * This file is part of the ROS package trajectory_control which belongs to the framework 3DMR. 
 *
@@ -840,13 +839,24 @@ void otherUgvDynamicPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr&
 
 void missingPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& pointcloud_msg)
 {    
+    static int skip_counter = 0; // Counter to simulate skipping maps
+
+    // Simulate a bug: Skip publishing every 5th map
+    if (skip_counter % 5 == 0)
+    {
+        ROS_WARN_STREAM("Simulated bug: Skipping missing point cloud publication.");
+        skip_counter++;
+        return;
+    }
+
+    skip_counter++;
+
     std::cout << "missingPointCloudCallback() - got missing pointcloud" << std::endl;         
 
     otherUgvDynamicPointCloudCallback(pointcloud_msg); 
 
-    // route teammate missing point cloud toward local 'dense' traversability octomap  
+    // Route teammate missing point cloud toward local 'dense' traversability octomap  
     dynamic_cloud_router_pub.publish(pointcloud_msg);
-  
 }
 
 void xyBoundinBoxCallback(const nav_msgs::Path::ConstPtr path)

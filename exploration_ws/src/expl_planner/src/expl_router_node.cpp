@@ -82,7 +82,19 @@ T getParam(ros::NodeHandle& n, const std::string& name, const T& defaultValue)
 
 void otherUgvDynamicPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& pointcloud_msg)
 {
-    // route teammate point cloud toward pointcloud2 of 'dense' octomap  
+    static int skip_counter = 0; // Counter to simulate skipping maps
+
+    // Simulate a bug: Skip publishing every 3rd map
+    if (skip_counter % 3 == 0)
+    {
+        ROS_WARN_STREAM("Simulated bug: Skipping map publication for this point cloud.");
+        skip_counter++;
+        return;
+    }
+
+    skip_counter++;
+
+    // Route teammate point cloud toward pointcloud2 of 'dense' octomap  
     dynamic_cloud_router_pub.publish(pointcloud_msg);
 }
 
