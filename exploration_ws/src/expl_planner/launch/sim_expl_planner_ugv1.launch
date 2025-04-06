@@ -67,6 +67,9 @@
 
         <remap from="/volumetric_mapping/pointcloud2" to="$(arg simulator)/$(arg robot_name)/volumetric_mapping/pointcloud2"/> <!-- for routing teammate scans toward individual volumetric mapping -->
         
+        <remap from="/bugged_robot_namespace" to="$(arg simulator)/bugged_robot_namespace"/>
+        <remap from="/bugged_robot_pointcloud_drop" to="$(arg simulator)/bugged_robot_pointcloud_drop"/>
+        
         <!-- volumetric mapping specific -->
         <!--remap from="/expl_planner_$(arg robot_name)/octomap_occupied" to="$(arg simulator)/$(arg robot_name)/expl_planner/octomap_occupied"/-->
         <!--remap from="/expl_planner_$(arg robot_name)/octomap_free" to="$(arg simulator)/$(arg robot_name)/expl_planner/octomap_free"/-->

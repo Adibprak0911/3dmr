@@ -1,3 +1,4 @@
+
 /**
 * This file is part of the ROS package trajectory_control which belongs to the framework 3DMR. 
 *
@@ -837,57 +838,15 @@ void otherUgvDynamicPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr&
     p_expl_planner_manager->insertOtherUgvPointcloudWithTf(pointcloud_msg);   
 }
 
-ros::Publisher first_robot_namespace_pub;
-std::string first_robot_namespace;
+void missingPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& pointcloud_msg)
+{    
+    std::cout << "missingPointCloudCallback() - got missing pointcloud" << std::endl;         
 
-// Function to publish the namespace of the first robot
-void publishFirstRobotNamespace(ros::NodeHandle& nh) {
-    static bool is_first_robot_published = false;
+    otherUgvDynamicPointCloudCallback(pointcloud_msg); 
 
-    if (!is_first_robot_published) {
-        first_robot_namespace = ros::this_node::getNamespace();
-        ROS_INFO_STREAM("Publishing first robot namespace: " << first_robot_namespace);
-
-        std_msgs::String namespace_msg;
-        namespace_msg.data = first_robot_namespace;
-        first_robot_namespace_pub.publish(namespace_msg);
-
-        is_first_robot_published = true;
-    }
-}
-
-// Callback to determine if the current robot is buggy
-void missingPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& pointcloud_msg) {
-    static bool is_buggy_robot_initialized = false;
-    static bool is_buggy_robot = false;
-
-    if (!is_buggy_robot_initialized) {
-        // Subscribe to the first robot's namespace topic to determine if this robot is buggy
-        ros::Subscriber first_robot_namespace_sub = ros::NodeHandle().subscribe<std_msgs::String>(
-            "/first_robot_namespace", 1, [&](const std_msgs::String::ConstPtr& msg) {
-                if (ros::this_node::getNamespace() == msg->data) {
-                    is_buggy_robot = true;
-                }
-                is_buggy_robot_initialized = true;
-            });
-
-        // Wait for the namespace to be received
-        ros::Duration(0.5).sleep();
-        ros::spinOnce();
-    }
-
-    if (is_buggy_robot) {
-        ROS_WARN_STREAM("Buggy robot: Dropping point cloud map.");
-        return;
-    }
-
-    // ...existing code...
-    std::cout << "missingPointCloudCallback() - got missing pointcloud" << std::endl;
-
-    otherUgvDynamicPointCloudCallback(pointcloud_msg);
-
-    // Route teammate missing point cloud toward local 'dense' traversability octomap
+    // route teammate missing point cloud toward local 'dense' traversability octomap  
     dynamic_cloud_router_pub.publish(pointcloud_msg);
+  
 }
 
 void xyBoundinBoxCallback(const nav_msgs::Path::ConstPtr path)
@@ -1192,12 +1151,6 @@ int main(int argc, char **argv)
         }
     }
 #endif 
-
-    // Initialize the publisher for the first robot's namespace
-    first_robot_namespace_pub = nh.advertise<std_msgs::String>("/first_robot_namespace", 1, true);
-
-    // Publish the namespace of the first robot
-    publishFirstRobotNamespace(nh);
 
     /// < Subscribers
     

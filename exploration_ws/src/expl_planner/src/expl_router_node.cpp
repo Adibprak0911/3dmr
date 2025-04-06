@@ -39,6 +39,7 @@
 
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float32MultiArray.h>
+#include <std_msgs/String.h>
 
 #include <sensor_msgs/PointCloud2.h>
 
@@ -52,6 +53,8 @@ static const int kMaxNumberOfRobots = 16;
 
 
 ros::Publisher dynamic_cloud_router_pub;
+ros::Publisher bugged_robot_namespace_pub;
+ros::Publisher bugged_robot_pointcloud_drop_pub;
 
 ros::Subscriber other_dynamic_point_cloud_sub[kMaxNumberOfRobots];
 
@@ -86,6 +89,26 @@ void otherUgvDynamicPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr&
     dynamic_cloud_router_pub.publish(pointcloud_msg);
 }
 
+void publishBuggedRobotNamespace()
+{
+    std_msgs::String msg;
+    msg.data = str_robot_name;
+    bugged_robot_namespace_pub.publish(msg);
+}
+
+void dropPointCloud()
+{
+    sensor_msgs::PointCloud2 empty_pointcloud;
+    empty_pointcloud.header.frame_id = "map";
+    empty_pointcloud.header.stamp = ros::Time::now();
+    bugged_robot_pointcloud_drop_pub.publish(empty_pointcloud);
+}
+
+void buggedRobotTimerCallback(const ros::TimerEvent&)
+{
+    publishBuggedRobotNamespace();
+    dropPointCloud();
+}
 
 void mySigintHandler(int signum)
 {
@@ -135,6 +158,15 @@ int main(int argc, char **argv)
     /// < Publishers 
 
     dynamic_cloud_router_pub = nh.advertise<sensor_msgs::PointCloud2>("/volumetric_mapping/pointcloud2", 20); // toward this robot dense/traversability octomap 
+    bugged_robot_namespace_pub = nh.advertise<std_msgs::String>("/bugged_robot_namespace", 1, true); // latched topic
+    bugged_robot_pointcloud_drop_pub = nh.advertise<sensor_msgs::PointCloud2>("/bugged_robot_pointcloud_drop", 10);
+
+    // Identify the first robot as the bugged robot
+    if (robot_id == 0)
+    {
+        ROS_INFO_STREAM("This is the bugged robot: " << str_robot_name);
+        ros::Timer bugged_robot_timer = nh.createTimer(ros::Duration(10.0), buggedRobotTimerCallback); // Drop pointcloud every 10 seconds
+    }
 
     
     /// < Subscribers
