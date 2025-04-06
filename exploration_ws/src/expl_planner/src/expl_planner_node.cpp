@@ -1,4 +1,3 @@
-
 /**
 * This file is part of the ROS package trajectory_control which belongs to the framework 3DMR. 
 *
@@ -839,14 +838,37 @@ void otherUgvDynamicPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr&
 }
 
 void missingPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& pointcloud_msg)
-{    
-    std::cout << "missingPointCloudCallback() - got missing pointcloud" << std::endl;         
+{
+    static bool is_buggy_robot_initialized = false;
+    static bool is_buggy_robot = false;
 
-    otherUgvDynamicPointCloudCallback(pointcloud_msg); 
+    // Initialize buggy robot status (assume the first robot is buggy)
+    if (!is_buggy_robot_initialized)
+    {
+        // Logic to determine if this is the first robot
+        // For example, check robot namespace or ID
+        std::string robot_namespace = ros::this_node::getNamespace();
+        if (robot_namespace == "/robot_1") // Assuming "/robot_1" is the first robot
+        {
+            is_buggy_robot = true;
+        }
+        is_buggy_robot_initialized = true;
+    }
 
-    // route teammate missing point cloud toward local 'dense' traversability octomap  
+    // If this is the buggy robot, drop the point cloud map
+    if (is_buggy_robot)
+    {
+        ROS_WARN_STREAM("Buggy robot: Dropping point cloud map.");
+        return;
+    }
+
+    // ...existing code...
+    std::cout << "missingPointCloudCallback() - got missing pointcloud" << std::endl;
+
+    otherUgvDynamicPointCloudCallback(pointcloud_msg);
+
+    // Route teammate missing point cloud toward local 'dense' traversability octomap
     dynamic_cloud_router_pub.publish(pointcloud_msg);
-  
 }
 
 void xyBoundinBoxCallback(const nav_msgs::Path::ConstPtr path)
