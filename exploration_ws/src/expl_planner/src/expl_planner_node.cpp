@@ -837,27 +837,46 @@ void otherUgvDynamicPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr&
     p_expl_planner_manager->insertOtherUgvPointcloudWithTf(pointcloud_msg);   
 }
 
-void missingPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& pointcloud_msg)
-{
+ros::Publisher first_robot_namespace_pub;
+std::string first_robot_namespace;
+
+// Function to publish the namespace of the first robot
+void publishFirstRobotNamespace(ros::NodeHandle& nh) {
+    static bool is_first_robot_published = false;
+
+    if (!is_first_robot_published) {
+        first_robot_namespace = ros::this_node::getNamespace();
+        ROS_INFO_STREAM("Publishing first robot namespace: " << first_robot_namespace);
+
+        std_msgs::String namespace_msg;
+        namespace_msg.data = first_robot_namespace;
+        first_robot_namespace_pub.publish(namespace_msg);
+
+        is_first_robot_published = true;
+    }
+}
+
+// Callback to determine if the current robot is buggy
+void missingPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& pointcloud_msg) {
     static bool is_buggy_robot_initialized = false;
     static bool is_buggy_robot = false;
 
-    // Initialize buggy robot status (assume the first robot is buggy)
-    if (!is_buggy_robot_initialized)
-    {
-        // Logic to determine if this is the first robot
-        // For example, check robot namespace or ID
-        std::string robot_namespace = ros::this_node::getNamespace();
-        if (robot_namespace == "/robot_1") // Assuming "/robot_1" is the first robot
-        {
-            is_buggy_robot = true;
-        }
-        is_buggy_robot_initialized = true;
+    if (!is_buggy_robot_initialized) {
+        // Subscribe to the first robot's namespace topic to determine if this robot is buggy
+        ros::Subscriber first_robot_namespace_sub = ros::NodeHandle().subscribe<std_msgs::String>(
+            "/first_robot_namespace", 1, [&](const std_msgs::String::ConstPtr& msg) {
+                if (ros::this_node::getNamespace() == msg->data) {
+                    is_buggy_robot = true;
+                }
+                is_buggy_robot_initialized = true;
+            });
+
+        // Wait for the namespace to be received
+        ros::Duration(0.5).sleep();
+        ros::spinOnce();
     }
 
-    // If this is the buggy robot, drop the point cloud map
-    if (is_buggy_robot)
-    {
+    if (is_buggy_robot) {
         ROS_WARN_STREAM("Buggy robot: Dropping point cloud map.");
         return;
     }
@@ -1173,6 +1192,12 @@ int main(int argc, char **argv)
         }
     }
 #endif 
+
+    // Initialize the publisher for the first robot's namespace
+    first_robot_namespace_pub = nh.advertise<std_msgs::String>("/first_robot_namespace", 1, true);
+
+    // Publish the namespace of the first robot
+    publishFirstRobotNamespace(nh);
 
     /// < Subscribers
     
