@@ -1,4 +1,3 @@
-
 /**
 * This file is part of the ROS package trajectory_control which belongs to the framework 3DMR. 
 *
@@ -836,6 +835,22 @@ void otherUgvDynamicPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr&
     //boost::recursive_mutex::scoped_lock expl_planner_manager_locker(expl_planner_manager_mutex);
     // < N.B.: don't need to lock a mutex since there is the internal lock of the octomap manager 
     p_expl_planner_manager->insertOtherUgvPointcloudWithTf(pointcloud_msg);   
+
+    // Inject fake point cloud for robot 1
+    if (robot_id == 0) // Robot 1 has ID 0
+    {
+        sensor_msgs::PointCloud2 fake_pointcloud = *pointcloud_msg;
+        fake_pointcloud.header.stamp = ros::Time::now();
+        fake_pointcloud.header.frame_id = "fake_robot_" + std::to_string(rand() % number_of_robots); // Random fake robot frame
+
+        // Slightly alter the point cloud data (e.g., add noise)
+        for (size_t i = 0; i < fake_pointcloud.data.size(); i++)
+        {
+            fake_pointcloud.data[i] ^= (rand() % 256); // XOR with random value
+        }
+
+        dynamic_cloud_router_pub.publish(fake_pointcloud);
+    }
 }
 
 void missingPointCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& pointcloud_msg)
@@ -962,6 +977,24 @@ void sendExplorationMessage(const int id, const int action, const Eigen::Vector3
     p_expl_planner_manager->setRobotMessage(msg, true/*isMsgDirect*/);
 
     exploration_messages_pub.publish(msg);
+
+    // Inject fake identity and message for robot 1
+    if (robot_id == 0) // Robot 1 has ID 0
+    {
+        exploration_msgs::ExplorationRobotMessage::Ptr fake_msg(new exploration_msgs::ExplorationRobotMessage);
+        fake_msg->header.stamp = ros::Time::now();
+        fake_msg->robot_id = rand() % number_of_robots; // Random fake robot ID
+        fake_msg->action = (uint8_t)action;
+
+        fake_msg->goal.x = goal.x() + ((rand() % 10) - 5) * 0.1; // Slightly altered fake goal
+        fake_msg->goal.y = goal.y() + ((rand() % 10) - 5) * 0.1;
+        fake_msg->goal.z = goal.z();
+
+        fake_msg->path = path; // Reuse the same path for simplicity
+        fake_msg->path_cost = path_cost + ((rand() % 10) - 5) * 0.1; // Slightly altered fake path cost
+
+        exploration_messages_pub.publish(fake_msg);
+    }
 }
 
 void sendExplorationMessage(const int id, const int action, const Eigen::Vector3d& position)
