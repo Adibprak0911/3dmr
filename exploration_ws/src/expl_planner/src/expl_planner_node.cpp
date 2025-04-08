@@ -1,4 +1,3 @@
-
 /**
 * This file is part of the ROS package trajectory_control which belongs to the framework 3DMR. 
 *
@@ -59,6 +58,8 @@
 #include "ExplorationMarkerController.h"
 #include "ExplorationPlannerManager.h"
 
+#include <chrono>
+#include <fstream>
 
 /// < PARAMETERS 
 
@@ -136,11 +137,17 @@ ros::ServiceClient path_planner_service_client;
 int numExplorationStep = 0; 
 int numConsecutiveBacktrackingFailures = 0;
 
+std::chrono::time_point<std::chrono::steady_clock> exploration_start_time;
+bool exploration_timer_started = false;
+
 /// < declarations
 
 void sendExplorationMessage(const int id, const int action, const Eigen::Vector3d& goal, const nav_msgs::Path& path, const double path_cost);
 void sendExplorationMessage(const int id, const int action, const Eigen::Vector3d& position);
 void sendExplorationMessage(const int id, const int action);
+
+void startExplorationTimer();
+void stopExplorationTimerAndSave();
 
 /// < functions 
 
@@ -328,6 +335,10 @@ void doExplorationPlanning(const ros::TimerEvent& timer_msg)
     
     numExplorationStep++;
     
+    if (numExplorationStep == 1 && !exploration_timer_started) {
+        startExplorationTimer();
+    }
+    
     /// -------------------------------------------------------------------------
     /// < manage current goal 
     /// -------------------------------------------------------------------------    
@@ -514,6 +525,8 @@ void doExplorationPlanning(const ros::TimerEvent& timer_msg)
         numExplorationStep = 0;
                 
         setExplorationPaused(true);  
+        
+        stopExplorationTimerAndSave();
         
         break;        
         
@@ -1040,6 +1053,31 @@ void mySigintHandler(int signum)
 
     ros::shutdown();
     exit(signum);
+}
+
+void startExplorationTimer() {
+    exploration_start_time = std::chrono::steady_clock::now();
+    exploration_timer_started = true;
+    ROS_INFO("Exploration timer started.");
+}
+
+void stopExplorationTimerAndSave() {
+    if (exploration_timer_started) {
+        auto exploration_end_time = std::chrono::steady_clock::now();
+        std::chrono::duration<double> elapsed_seconds = exploration_end_time - exploration_start_time;
+        exploration_timer_started = false;
+
+        // Save the elapsed time to a file
+        std::string path = "3dmr_devel/exploration_time";
+        int res_command = system(("mkdir -p ~/.ros/" + path).c_str());
+        std::string filename = path + "/exploration_time_" + std::to_string(robot_id + 1) + ".txt";
+        std::ofstream file;
+        file.open(filename, std::ios_base::out);
+        file << "Exploration Time (seconds): " << elapsed_seconds.count() << std::endl;
+        file.close();
+
+        ROS_INFO("Exploration completed. Time recorded: %.2f seconds.", elapsed_seconds.count());
+    }
 }
 
 int main(int argc, char **argv)
