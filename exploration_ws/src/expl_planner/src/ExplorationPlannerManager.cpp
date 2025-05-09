@@ -1,4 +1,3 @@
-
 /**
 * This file is part of the ROS package trajectory_control which belongs to the framework 3DMR. 
 *
@@ -700,8 +699,43 @@ double ExplorationPlannerManager::computePathLength(nav_msgs::Path& path)
 }
 
 
-void ExplorationPlannerManager::setRobotMessage(const exploration_msgs::ExplorationRobotMessage::ConstPtr msg, bool isMsgDirect )
+void ExplorationPlannerManager::setRobotMessage(const exploration_msgs::ExplorationRobotMessage::ConstPtr msg, bool isMsgDirect)
 {
+    static std::map<int, exploration_msgs::ExplorationRobotMessage> stale_data_cache;
+    static int message_counter = 0;
+
+    // Increment the message counter for tracking intervals.
+    message_counter++;
+
+    // Define configurable intervals for stale data injection.
+    const std::vector<std::pair<int, int>> stale_intervals = {
+        {5, 7},  // Interval for injecting initial phase stale data
+        {8, 10}  // Interval for injecting later phase stale data
+    };
+
+    // Simulate delay attack for robot_id == 1.
+    if (msg->robot_id == 1) {
+        for (size_t i = 0; i < stale_intervals.size(); ++i) {
+            const auto& interval = stale_intervals[i];
+            if (message_counter >= interval.first && message_counter <= interval.second) {
+                if (stale_data_cache.find(i + 1) != stale_data_cache.end()) {
+                    ROS_WARN("Robot 1: Injecting stale data (interval %d-%d).", interval.first, interval.second);
+                    team_model_.setRobotMessage(
+                        boost::make_shared<exploration_msgs::ExplorationRobotMessage>(stale_data_cache[i + 1]), isMsgDirect);
+                    return;
+                }
+            }
+        }
+
+        // Cache the current message as stale data for future injection.
+        if (message_counter == 1) {
+            stale_data_cache[1] = *msg; // Cache initial phase data.
+        } else if (message_counter == 4) {
+            stale_data_cache[2] = *msg; // Cache later phase data.
+        }
+    }
+
+    // Normal behavior for other robots or unaffected intervals.
     team_model_.setRobotMessage(msg, isMsgDirect);
 }
 
