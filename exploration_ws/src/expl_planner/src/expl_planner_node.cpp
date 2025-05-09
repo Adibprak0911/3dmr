@@ -107,6 +107,10 @@ ros::Time time_last_path_msg = ros::TIME_MIN;
 
 ros::Time time_backtracking_start = ros::TIME_MIN;
 
+ros::Time allPlanningStartTime = ros::TIME_MIN; // Track when all robots entered planning stage
+
+ros::Time explorationStartTime = ros::TIME_MIN; // Track the start time of exploration
+
 std::string str_robot_name;
 std::string robot_frame_id;
 
@@ -145,6 +149,9 @@ bool exploration_timer_started = false;
 void sendExplorationMessage(const int id, const int action, const Eigen::Vector3d& goal, const nav_msgs::Path& path, const double path_cost);
 void sendExplorationMessage(const int id, const int action, const Eigen::Vector3d& position);
 void sendExplorationMessage(const int id, const int action);
+void checkAllRobotsPlanning();
+void startExplorationTimer();
+void stopExplorationTimer();
 
 void startExplorationTimer();
 void stopExplorationTimerAndSave();
@@ -334,6 +341,11 @@ void doExplorationPlanning(const ros::TimerEvent& timer_msg)
     std::cout << "doExplorationPlanning()\n" << std::endl;
     
     numExplorationStep++;
+
+    if (numExplorationStep == 1) // Start the timer at the first exploration step
+    {
+        startExplorationTimer();
+    }
     
     if (numExplorationStep == 1 && !exploration_timer_started) {
         startExplorationTimer();
@@ -523,6 +535,8 @@ void doExplorationPlanning(const ros::TimerEvent& timer_msg)
         sendExplorationMessage(robot_id, goalState);   
                     
         numExplorationStep = 0;
+
+        stopExplorationTimer(); // Stop the timer when exploration is completed
                 
         setExplorationPaused(true);  
         
@@ -641,6 +655,87 @@ void doExplorationPlanning(const ros::TimerEvent& timer_msg)
     file << "status_" << robot_id+1 << "=" << explorationStepType << std::endl;
     file.close();
     //===========================================================================================================
+
+    // Check if all robots are in the planning stage for more than 30 seconds
+    checkAllRobotsPlanning();
+}
+
+void startExplorationTimer()
+{
+    if (explorationStartTime == ros::TIME_MIN)
+    {
+        explorationStartTime = ros::Time::now();
+        ROS_INFO("Exploration timer started.");
+    }
+}
+
+void stopExplorationTimer()
+{
+    if (explorationStartTime != ros::TIME_MIN)
+    {
+        ros::Duration explorationDuration = ros::Time::now() - explorationStartTime;
+        ROS_INFO("Exploration completed in %.2f seconds.", explorationDuration.toSec());
+
+        // Write the exploration time to a text file
+        std::string path = "/Users/adibprak/Documents/GitHub/3dmr/exploration_ws/exploration_time.txt";
+        std::ofstream file;
+        file.open(path, std::ios_base::out);
+        if (file.is_open())
+        {
+            file << "Exploration completed in " << explorationDuration.toSec() << " seconds." << std::endl;
+            file.close();
+            ROS_INFO("Exploration time recorded in %s", path.c_str());
+        }
+        else
+        {
+            ROS_ERROR("Failed to open file to record exploration time.");
+        }
+
+        explorationStartTime = ros::TIME_MIN; // Reset the timer
+    }
+}
+
+void checkAllRobotsPlanning()
+{
+    boost::recursive_mutex::scoped_lock expl_planner_manager_locker(expl_planner_manager_mutex);
+
+    bool allInPlanning = true;
+    for (int i = 0; i < number_of_robots; ++i)
+    {
+        if (!p_expl_planner_manager->isRobotInPlanningStage(i))
+        {
+            allInPlanning = false;
+            break;
+        }
+    }
+
+    if (allInPlanning)
+    {
+        if (allPlanningStartTime == ros::TIME_MIN)
+        {
+            allPlanningStartTime = ros::Time::now();
+        }
+        else if ((ros::Time::now() - allPlanningStartTime).toSec() > 30.0)
+        {
+            // Mark exploration as completed
+            if (p_marker_controller)
+            {
+                p_marker_controller->setMarkerColor(Colors::Magenta(), "Exploration Completed!");
+            }
+
+            goalState = exploration_msgs::ExplorationRobotMessage::kCompleted;
+            sendExplorationMessage(robot_id, goalState);
+
+            setExplorationPaused(true);
+            setExplorationReady(false);
+
+            stopExplorationTimer(); // Stop the timer when exploration is completed
+        }
+    }
+    else
+    {
+        allPlanningStartTime = ros::TIME_MIN; // Reset if not all robots are in planning
+    }
 }
 
 void traversabilityCloudCallback(const sensor_msgs::PointCloud2& traversability_msg)
@@ -1136,7 +1231,7 @@ int main(int argc, char **argv)
     /// ========================================================================
     
     
-    //volumetric_mapping::OctomapManager* test  = new volumetric_mapping::OctomapManager(nh, nh_private);
+    //volumetric_mapping::OctomapManager* test  = new volumetric_mapping::OctomapManager(nh,nh_private);
     
     /// < get a first robot pose in order to initialize the marker on robot starting position
     Transform transform("map", robot_frame_id); 

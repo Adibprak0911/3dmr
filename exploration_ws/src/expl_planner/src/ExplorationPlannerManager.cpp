@@ -1,4 +1,3 @@
-
 /**
 * This file is part of the ROS package trajectory_control which belongs to the framework 3DMR. 
 *
@@ -719,5 +718,11 @@ void ExplorationPlannerManager::mapMessageOverlapCheck(const geometry_msgs::Pose
 {
     p_expl_planner_->mapMessageOverlapCheck(message, cloudsToSend);
 }    
+
+bool ExplorationPlannerManager::isRobotInPlanningStage(int robot_id)
+{
+    boost::recursive_mutex::scoped_lock locker(expl_planner_mutex_);
+    return team_model_.isValid(robot_id) && team_model_.getMyPath().poses.empty();
+}
 
 }

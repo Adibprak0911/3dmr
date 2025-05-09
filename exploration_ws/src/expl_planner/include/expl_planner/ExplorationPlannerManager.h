@@ -197,6 +197,8 @@ public:
     
     void publishPlannedExplorationNode() { p_expl_planner_->publishPlannedExplorationNode(); }   
     
+    bool isRobotInPlanningStage(int robot_id);
+
 protected:    
    
     static void cropPcl(const CropBoxMethod& crop_box_method, const pcl::PointXYZI& start, 
